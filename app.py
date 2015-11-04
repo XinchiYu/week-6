@@ -79,7 +79,7 @@ def getData():
 	print "received coordinates: [" + lat1 + ", " + lat2 + "], [" + lng1 + ", " + lng2 + "]"
 	
 	client = pyorient.OrientDB("localhost", 2424)
-	session_id = client.connect("root", "password")
+	session_id = client.connect("root", "188019")
 	db_name = "soufun"
 	db_username = "admin"
 	db_password = "admin"
@@ -95,8 +95,8 @@ def getData():
 
 	records = client.command(query.format(lat1, lat2, lng1, lng2))
 
-	# random.shuffle(records)
-	# records = records[:100]
+	random.shuffle(records)
+	records = records[:100]
 
 	numListings = len(records)
 	print 'received ' + str(numListings) + ' records'
@@ -148,20 +148,19 @@ def getData():
 		for i in range(numW):
 			grid[j].append(0)
 
-	# for record in records:
+	#HEAT MAP IMPLEMENTATION
+	for record in records:
 
-	# 	pos_x = int(remap(record.longitude, lng1, lng2, 0, numW))
-	# 	pos_y = int(remap(record.latitude, lat1, lat2, numH, 0))
+        pos_x = int(remap(record.longitude, lng1, lng2, 0, numW))
+        pos_y = int(remap(record.latitude, lat1, lat2, numH, 0))
+            
+        spread = 12
+            
+        for j in range(max(0, (pos_y-spread)), min(numH, (pos_y+spread))):
+            for i in range(max(0, (pos_x-spread)), min(numW, (pos_x+spread))):
+                grid[j][i] += 2 * math.exp((-point_distance(i,j,pos_x,pos_y)**2)/(2*(spread/2)**2))
 
-	# 	spread = 12
-
-	# 	for j in range(max(0, (pos_y-spread)), min(numH, (pos_y+spread))):
-	# 		for i in range(max(0, (pos_x-spread)), min(numW, (pos_x+spread))):
-	# 			grid[j][i] += 2 * math.exp((-point_distance(i,j,pos_x,pos_y)**2)/(2*(spread/2)**2))
-
-
-	## ML IMPLEMENTATION
-
+	## MACHINE LEARNING IMPLEMENTATION
 	featureData = []
 	targetData = []
 
@@ -172,59 +171,51 @@ def getData():
 	X = np.asarray(featureData, dtype='float')
 	y = np.asarray(targetData, dtype='float')
 
-	num = int(len(targetData) * .7)
+	breakpoint = int(numListings * .7)
 
-	print "length of dataset: " + str(len(targetData))
-	print "length of training set: " + str(num)
-	print "length of validation set: " + str(len(targetData)-num)
+	print "length of dataset: " + str(numListings)
+	print "length of training set: " + str(breakpoint)
+	print "length of validation set: " + str(numListings-breakpoint)
 
 	# create training and validation set
-	X_train = X[:num]
-	X_val = X[num:]
+	X_train = X[:breakpoint]
+	X_val = X[breakpoint:]
 
-	y_train = y[:num]
-	y_val = y[num:]
+	y_train = y[:breakpoint]
+	y_val = y[breakpoint:]
 
 	#mean 0, variance 1
 	scaler = preprocessing.StandardScaler().fit(X_train)
 	X_train_scaled = scaler.transform(X_train)
 
 	mse_min = 10000000000000000000000
-	C_min = 0
-	e_min = 0
 
-	e_log = ""
+	for C in [.01, 1, 100, 10000, 1000000]:
 
-	q.put("training validation models")
+		for e in [.01, 1, 100, 10000, 1000000]:
 
-	for C_var in [1, 10000, 1000000]:
+				for g in [.01, 1, 100, 10000, 1000000]:
 
-		for e_var in [.001, 10, 10000]:
+					q.put("training model: C[" + str(C) + "], e[" + str(e) + "], g[" + str(g) + "]")
 
-			# model = svm.SVR(C=10000000, epsilon=.00001, kernel='rbf', cache_size=2000)
-			model = svm.SVR(C=C_var, epsilon=e_var, kernel='rbf', cache_size=2000)
-			model.fit(X_train_scaled, y_train)
+					model = svm.SVR(C=C, epsilon=e, gamma=g, kernel='rbf', cache_size=2000)
+					model.fit(X_train_scaled, y_train)
 
-			#predict on validation set
-			y_val_p = [model.predict(i) for i in X_val]
+					y_val_p = [model.predict(i) for i in X_val]
 
-			#check error values
-			mse = 0
-			for i in range(len(y_val_p)):
-				mse += (y_val_p[i] - y_val[i]) ** 2
+					mse = 0
+					for i in range(len(y_val_p)):
+						mse += (y_val_p[i] - y_val[i]) ** 2
+					mse /= len(y_val_p)
 
-			e_log += str(mse)
+					if mse < mse_min:
+						mse_min = mse
+						model_best = model
+						C_best = C
+						e_best = e
+						g_best = g
 
-			if mse < mse_min:
-				mse_min = mse
-				C_min = C_var
-				e_min = e_var
-				minModel = model
-
-	q.put("error results: " + e_log + "; model chosen, C: " + str(C_min) + ", e: " + str(e_min))
-
-	# model = svm.SVR(C=C_min, epsilon=e_min, kernel='rbf', cache_size=2000)
-	# model.fit(X_train_scaled, y_train)
+	q.put("best model: C[" + str(C_best) + "], e[" + str(e_best) + "], g[" + str(g_best) + "]")
 
 	for j in range(numH):
 		for i in range(numW):
@@ -234,9 +225,7 @@ def getData():
 			testData = [[lat, lng]]
 			X_test = np.asarray(testData, dtype='float')
 			X_test_scaled = scaler.transform(X_test)
-			grid[j][i] = minModel.predict(X_test_scaled)
-
-	## ML IMPLEMENTATION
+			grid[j][i] = model_best.predict(X_test_scaled)
 
 	grid = normalizeArray(grid)
 
@@ -255,7 +244,7 @@ def getData():
 
 			output["analysis"].append(newItem)
 
-	# q.put('idle')
+	q.put('idle')
 
 	return json.dumps(output)
 
