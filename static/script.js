@@ -1,5 +1,3 @@
-
-
 var eventOutputContainer = document.getElementById("message");
 var eventSrc = new EventSource("/eventSource");
 
@@ -63,13 +61,13 @@ function updateData(){
 	var w = window.innerWidth;
 	var h = window.innerHeight;
 
-	var checked = document.getElementById("interpolation").checked
-
-	request = "/getData?lat1=" + lat1 + "&lat2=" + lat2 + "&lng1=" + lng1 + "&lng2=" + lng2 + "&w=" + w + "&h=" + h + "&cell_size=" + cell_size + "&analysis=" + checked
-
+        var checked = document.getElementById("interpolation").checked
+	var heatchecked = document.getElementById("heatmap").checked
+	
+	request = "/getData?lat1=" + lat1 + "&lat2=" + lat2 + "&lng1=" + lng1 + "&lng2=" + lng2 + "&w=" + w + "&h=" + h + "&cell_size=" + cell_size + "&analysis=" + checked + "&heatmap=" + heatchecked 
 	console.log(request);
-
-  	d3.json(request, function(data) {
+	
+	d3.json(request, function(data) {
 
 		//create placeholder circle geometry and bind it to data
 		var circles = g.selectAll("circle").data(data.features);
@@ -90,7 +88,7 @@ function updateData(){
 			.on("mouseout", function(){
 				tooltip.style("visibility", "hidden");
 			})
-			// .attr("fill", function(d) { return "hsl(" + Math.floor((1-d.properties.priceNorm)*250) + ", 100%, 50%)"; })
+			// attr("fill", function(d) { return "hsl(" + Math.floor((1-d.properties.priceNorm)*250) + ", 100%, 50%)"; })
 		;
 
 		// call function to update geometry
@@ -146,7 +144,6 @@ function updateData(){
     			.attr("r", function(d) { return Math.pow(d.properties.price,.3); });
 		};
 	});
-
 };
 
 updateData();
