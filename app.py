@@ -75,7 +75,8 @@ def getData():
 	cell_size = float(request.args.get('cell_size'))
 
 	analysis = request.args.get('analysis')
-
+        heatmap = request.args.get('heatchecked')
+        
 	print "received coordinates: [" + lat1 + ", " + lat2 + "], [" + lng1 + ", " + lng2 + "]"
 	
 	client = pyorient.OrientDB("localhost", 2424)
